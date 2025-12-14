@@ -58,21 +58,21 @@ async function run() {
     // save user information when they signup
     app.post("/user", async (req, res) => {
       const userData = req.body;
-      // userData.role = "donor";
-      // userData.created_at = new Date().toISOString();
-      // userData.last_loggedIn = new Date().toISOString();
-      // const query = { email: userData.email };
-      // const alreadyExists = await usersCollection.findOne(query);
-      // console.log("user already exist--->", !!alreadyExists);
-      // if (alreadyExists) {
-      //   console.log("updating info ....");
-      //   const result = await usersCollection.updateOne(query, {
-      //     $set: {
-      //       last_loggedIn: new Date().toISOString(),
-      //     },
-      //   });
-      //   return res.send(result);
-      // }
+      userData.role = "donor";
+      userData.created_at = new Date().toISOString();
+      userData.last_loggedIn = new Date().toISOString();
+      const query = { email: userData.email };
+      const alreadyExists = await usersCollection.findOne(query);
+      console.log("user already exist--->", !!alreadyExists);
+      if (alreadyExists) {
+        console.log("updating info ....");
+        const result = await usersCollection.updateOne(query, {
+          $set: {
+            last_loggedIn: new Date().toISOString(),
+          },
+        });
+        return res.send(result);
+      }
 
       const result = await usersCollection.insertOne(userData);
       return res.send(result);
