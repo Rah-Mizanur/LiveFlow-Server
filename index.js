@@ -54,11 +54,13 @@ async function run() {
   try {
     const db = client.db("Liveflow");
     const usersCollection = db.collection("users");
+    const bloodRequestsCollection = db.collection('bloodRequests')
 
     // save user information when they signup
     app.post("/user", async (req, res) => {
       const userData = req.body;
       userData.role = "donor";
+      userData.status = "active";
       userData.created_at = new Date().toISOString();
       userData.last_loggedIn = new Date().toISOString();
       const query = { email: userData.email };
@@ -77,7 +79,30 @@ async function run() {
       const result = await usersCollection.insertOne(userData);
       return res.send(result);
     });
+    
+    app.get("/profile", verifyJWT, async (req, res) => {
+       const result = await usersCollection.findOne({ email: req.tokenEmail });
+      res.send(result);
+    });
+    //    app.patch("/profile", verifyJWT, async (req, res) => {
+    //   const { email,district,upazila,bloodGroup,image  } = req.body;
+    //   const result = await usersCollection.updateOne(
+    //     { email },
+    //     { $set: { district } },
+    //     { $set: { upazila } },
+    //     { $set: { bloodGroup } },
+    //     { $set: { image } },
 
+    //   );
+     
+    //   res.send(result);
+    // });
+   app.post("/create-request",verifyJWT, async (req, res) => {
+      const bloodRequests = req.body;
+
+      const result = bloodRequestsCollection.insertOne(bloodRequests);
+      res.send(result);
+    });
     // app.get('/user',async(req,res)=>{
     //     const result = await usersCollection.find().toArray();
     //   res.send(result);
