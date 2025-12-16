@@ -54,7 +54,7 @@ async function run() {
   try {
     const db = client.db("Liveflow");
     const usersCollection = db.collection("users");
-    const bloodRequestsCollection = db.collection('bloodRequests')
+    const bloodRequestsCollection = db.collection("bloodRequests");
 
     // save user information when they signup
     app.post("/user", async (req, res) => {
@@ -79,9 +79,9 @@ async function run() {
       const result = await usersCollection.insertOne(userData);
       return res.send(result);
     });
-    
+
     app.get("/profile", verifyJWT, async (req, res) => {
-       const result = await usersCollection.findOne({ email: req.tokenEmail });
+      const result = await usersCollection.findOne({ email: req.tokenEmail });
       res.send(result);
     });
     //    app.patch("/profile", verifyJWT, async (req, res) => {
@@ -94,32 +94,39 @@ async function run() {
     //     { $set: { image } },
 
     //   );
-     
+
     //   res.send(result);
     // });
-   app.post("/create-request",verifyJWT, async (req, res) => {
+    app.post("/create-request", verifyJWT, async (req, res) => {
       const bloodRequests = req.body;
-      bloodRequests.requestTime = new Date()
-      bloodRequests.status = "pending"
+      bloodRequests.requestTime = new Date();
+      bloodRequests.status = "pending";
       const result = bloodRequestsCollection.insertOne(bloodRequests);
       res.send(result);
     });
-   app.get("/my-blood-req/:email",verifyJWT, async (req, res) => {
+    app.get("/my-blood-req-latest/:email", verifyJWT, async (req, res) => {
       const email = req.params.email;
-
       const result = await bloodRequestsCollection
-        .find({ "registererEmail": email })
+        .find({ registererEmail: email })
+        .sort({ requestTime: -1 })
+        .limit(3)
         .toArray();
       res.send(result);
     });
-    app.get('/req-details/:id', async(req,res)=>{
+    app.get("/my-blood-req/:email", verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      const result = await bloodRequestsCollection
+        .find({ registererEmail: email })
+        .toArray();
+      res.send(result);
+    });
+    app.get("/req-details/:id", async (req, res) => {
       const { id } = req.params;
       const result = await bloodRequestsCollection.findOne({
         _id: new ObjectId(id),
       });
       res.send(result);
-    })
-
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
