@@ -1,7 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const admin = require("firebase-admin");
 const port = process.env.PORT || 3000;
 
@@ -99,14 +99,26 @@ async function run() {
     // });
    app.post("/create-request",verifyJWT, async (req, res) => {
       const bloodRequests = req.body;
-
+      bloodRequests.requestTime = new Date()
+      bloodRequests.status = "pending"
       const result = bloodRequestsCollection.insertOne(bloodRequests);
       res.send(result);
     });
-    // app.get('/user',async(req,res)=>{
-    //     const result = await usersCollection.find().toArray();
-    //   res.send(result);
-    // })
+   app.get("/my-blood-req/:email",verifyJWT, async (req, res) => {
+      const email = req.params.email;
+
+      const result = await bloodRequestsCollection
+        .find({ "registererEmail": email })
+        .toArray();
+      res.send(result);
+    });
+    app.get('/req-details/:id', async(req,res)=>{
+      const { id } = req.params;
+      const result = await bloodRequestsCollection.findOne({
+        _id: new ObjectId(id),
+      });
+      res.send(result);
+    })
 
 
     // Send a ping to confirm a successful connection
