@@ -120,6 +120,18 @@ async function run() {
         .toArray();
       res.send(result);
     });
+    app.get("/all-blood-req", verifyJWT, async (req, res) => {
+      const result = await bloodRequestsCollection
+        .find()
+        .toArray();
+      res.send(result);
+    });
+    app.get("/all-users", verifyJWT, async (req, res) => {
+      const result = await usersCollection
+        .find()
+        .toArray();
+      res.send(result);
+    });
     app.get("/req-details/:id", async (req, res) => {
       const { id } = req.params;
       const result = await bloodRequestsCollection.findOne({
