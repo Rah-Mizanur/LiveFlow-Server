@@ -165,6 +165,21 @@ async function run() {
       res.send(result);
     });
 
+    // update blood request status 
+      app.patch("/update-blood-status", verifyJWT, async (req, res) => {
+      const { id, status , donorName,donorEmail } = req.body;
+    const filter = { _id: new ObjectId(id) };
+    const updateDoc = {
+      $set: { 
+        status: status,
+        donorName: donorName,
+        donorEmail: donorEmail  
+      },
+    };
+    const result = await bloodRequestsCollection.updateOne(filter, updateDoc);
+    res.send(result);
+    });
+    
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
