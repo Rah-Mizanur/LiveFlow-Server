@@ -154,7 +154,16 @@ async function run() {
       );
       res.send(result);
     });
-  
+     app.patch("/update-status", verifyJWT, async (req, res) => {
+      const { email } = req.body;
+      const user = await usersCollection.findOne({email})
+      const updateStatus = user.status === 'active' ? 'block': 'active'
+      const result = await usersCollection.updateOne(
+        { email },
+        { $set: {status : updateStatus } }
+      );
+      res.send(result);
+    });
 
 
     // Send a ping to confirm a successful connection
