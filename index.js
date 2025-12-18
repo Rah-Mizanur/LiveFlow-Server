@@ -144,6 +144,10 @@ async function run() {
       const result = await usersCollection.findOne({ email: req.tokenEmail });
       res.send({ role: result?.role });
     });
+     app.get("/user/status", verifyJWT, async (req, res) => {
+      const result = await usersCollection.findOne({ email: req.tokenEmail });
+      res.send({ status: result?.status });
+    });
 
     // users role update api 
      app.patch("/update-role", verifyJWT, async (req, res) => {
@@ -172,8 +176,19 @@ async function run() {
     const updateDoc = {
       $set: { 
         status: status,
-        donorName: donorName,
+        donorName: donorName,    
         donorEmail: donorEmail  
+      },
+    };
+    const result = await bloodRequestsCollection.updateOne(filter, updateDoc);
+    res.send(result);
+    });
+      app.patch("/update-blood-status-done", verifyJWT, async (req, res) => {
+      const { id, status  } = req.body;
+    const filter = { _id: new ObjectId(id) };
+    const updateDoc = {
+      $set: { 
+        status: status,
       },
     };
     const result = await bloodRequestsCollection.updateOne(filter, updateDoc);
