@@ -84,19 +84,10 @@ async function run() {
       const result = await usersCollection.findOne({ email: req.tokenEmail });
       res.send(result);
     });
-    //    app.patch("/profile", verifyJWT, async (req, res) => {
-    //   const { email,district,upazila,bloodGroup,image  } = req.body;
-    //   const result = await usersCollection.updateOne(
-    //     { email },
-    //     { $set: { district } },
-    //     { $set: { upazila } },
-    //     { $set: { bloodGroup } },
-    //     { $set: { image } },
+      
+ 
 
-    //   );
-
-    //   res.send(result);
-    // });
+  
     app.post("/create-request", verifyJWT, async (req, res) => {
       const bloodRequests = req.body;
       bloodRequests.requestTime = new Date();
@@ -183,6 +174,7 @@ async function run() {
     const result = await bloodRequestsCollection.updateOne(filter, updateDoc);
     res.send(result);
     });
+
       app.patch("/update-blood-status-done", verifyJWT, async (req, res) => {
       const { id, status  } = req.body;
     const filter = { _id: new ObjectId(id) };
@@ -194,6 +186,35 @@ async function run() {
     const result = await bloodRequestsCollection.updateOne(filter, updateDoc);
     res.send(result);
     });
+      // edit post 
+      app.patch("/edit-request",verifyJWT,async(req,res)=>{
+        const {id ,updateRequest} = req.body;
+        const filter = {_id : new ObjectId(id)}
+        const updateDoc = {
+          $set : {
+            ...updateRequest,
+            edit_At: new Date()
+          }
+        }
+        const result = await bloodRequestsCollection.updateOne(filter,updateDoc)
+        console.log(result)
+        res.send(result)
+      })
+   
+        app.patch("/profile-update",verifyJWT,async(req,res)=>{
+        const {email,updatedProfile} = req.body;
+        const filter = {email:email}
+        const updateDoc = {
+          $set : {
+            ...updatedProfile,
+            last_update_At: new Date()
+          }
+        }
+        const result = await usersCollection.updateOne(filter,updateDoc)
+        console.log(result)
+        res.send(result)
+      })
+   
     
 
     // Send a ping to confirm a successful connection
