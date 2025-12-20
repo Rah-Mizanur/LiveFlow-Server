@@ -55,7 +55,7 @@ async function run() {
     const db = client.db("Liveflow");
     const usersCollection = db.collection("users");
     const bloodRequestsCollection = db.collection("bloodRequests");
-
+    const deletedBloodRequestsCollection = db.collection("deletedRequest");
     // save user information when they signup
     app.post("/user", async (req, res) => {
       const userData = req.body;
@@ -84,10 +84,6 @@ async function run() {
       const result = await usersCollection.findOne({ email: req.tokenEmail });
       res.send(result);
     });
-      
- 
-
-  
     app.post("/create-request", verifyJWT, async (req, res) => {
       const bloodRequests = req.body;
       bloodRequests.requestTime = new Date();
@@ -112,15 +108,20 @@ async function run() {
       res.send(result);
     });
     app.get("/all-blood-req", verifyJWT, async (req, res) => {
-      const result = await bloodRequestsCollection
-        .find()
-        .toArray();
+      const result = await bloodRequestsCollection.find().toArray();
+      res.send(result);
+    });
+    app.get("/pending-blood-req",async(req,res)=>{
+      const filter = ({status : "pending"})
+      const result = await bloodRequestsCollection.find(filter).toArray()
+      res.send(result)
+    })
+    app.get("/deleted-blood-req", verifyJWT, async (req, res) => {
+      const result = await deletedBloodRequestsCollection.find().toArray();
       res.send(result);
     });
     app.get("/all-users", verifyJWT, async (req, res) => {
-      const result = await usersCollection
-        .find()
-        .toArray();
+      const result = await usersCollection.find().toArray();
       res.send(result);
     });
     app.get("/req-details/:id", async (req, res) => {
@@ -131,17 +132,17 @@ async function run() {
       res.send(result);
     });
 
-     app.get("/user/role", verifyJWT, async (req, res) => {
+    app.get("/user/role", verifyJWT, async (req, res) => {
       const result = await usersCollection.findOne({ email: req.tokenEmail });
       res.send({ role: result?.role });
     });
-     app.get("/user/status", verifyJWT, async (req, res) => {
+    app.get("/user/status", verifyJWT, async (req, res) => {
       const result = await usersCollection.findOne({ email: req.tokenEmail });
       res.send({ status: result?.status });
     });
 
-    // users role update api 
-     app.patch("/update-role", verifyJWT, async (req, res) => {
+    // users role update api
+    app.patch("/update-role", verifyJWT, async (req, res) => {
       const { email, role } = req.body;
       const result = await usersCollection.updateOne(
         { email },
@@ -149,73 +150,85 @@ async function run() {
       );
       res.send(result);
     });
-     app.patch("/update-status", verifyJWT, async (req, res) => {
+    app.patch("/update-status", verifyJWT, async (req, res) => {
       const { email } = req.body;
-      const user = await usersCollection.findOne({email})
-      const updateStatus = user.status === 'active' ? 'block': 'active'
+      const user = await usersCollection.findOne({ email });
+      const updateStatus = user.status === "active" ? "block" : "active";
       const result = await usersCollection.updateOne(
         { email },
-        { $set: {status : updateStatus } }
+        { $set: { status: updateStatus } }
       );
       res.send(result);
     });
 
-    // update blood request status 
-      app.patch("/update-blood-status", verifyJWT, async (req, res) => {
-      const { id, status , donorName,donorEmail } = req.body;
-    const filter = { _id: new ObjectId(id) };
-    const updateDoc = {
-      $set: { 
-        status: status,
-        donorName: donorName,    
-        donorEmail: donorEmail  
-      },
-    };
-    const result = await bloodRequestsCollection.updateOne(filter, updateDoc);
-    res.send(result);
+    // update blood request status
+    app.patch("/update-blood-status", verifyJWT, async (req, res) => {
+      const { id, status, donorName, donorEmail } = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          status: status,
+          donorName: donorName,
+          donorEmail: donorEmail,
+        },
+      };
+      const result = await bloodRequestsCollection.updateOne(filter, updateDoc);
+      res.send(result);
     });
 
-      app.patch("/update-blood-status-done", verifyJWT, async (req, res) => {
-      const { id, status  } = req.body;
-    const filter = { _id: new ObjectId(id) };
-    const updateDoc = {
-      $set: { 
-        status: status,
-      },
-    };
-    const result = await bloodRequestsCollection.updateOne(filter, updateDoc);
-    res.send(result);
+    app.patch("/update-blood-status-done", verifyJWT, async (req, res) => {
+      const { id, status } = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          status: status,
+        },
+      };
+      const result = await bloodRequestsCollection.updateOne(filter, updateDoc);
+      res.send(result);
     });
-      // edit post 
-      app.patch("/edit-request",verifyJWT,async(req,res)=>{
-        const {id ,updateRequest} = req.body;
-        const filter = {_id : new ObjectId(id)}
-        const updateDoc = {
-          $set : {
-            ...updateRequest,
-            edit_At: new Date()
-          }
-        }
-        const result = await bloodRequestsCollection.updateOne(filter,updateDoc)
-        console.log(result)
-        res.send(result)
-      })
-   
-        app.patch("/profile-update",verifyJWT,async(req,res)=>{
-        const {email,updatedProfile} = req.body;
-        const filter = {email:email}
-        const updateDoc = {
-          $set : {
-            ...updatedProfile,
-            last_update_At: new Date()
-          }
-        }
-        const result = await usersCollection.updateOne(filter,updateDoc)
-        console.log(result)
-        res.send(result)
-      })
-   
-    
+    // edit post
+    app.patch("/edit-request", verifyJWT, async (req, res) => {
+      const { id, updateRequest } = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          ...updateRequest,
+          edit_At: new Date(),
+        },
+      };
+      const result = await bloodRequestsCollection.updateOne(filter, updateDoc);
+      console.log(result);
+      res.send(result);
+    });
+
+    app.patch("/profile-update", verifyJWT, async (req, res) => {
+      const { email, updatedProfile } = req.body;
+      const filter = { email: email };
+      const updateDoc = {
+        $set: {
+          ...updatedProfile,
+          last_update_At: new Date(),
+        },
+      };
+      const result = await usersCollection.updateOne(filter, updateDoc);
+      console.log(result);
+      res.send(result);
+    });
+
+    // delete data and includes other database
+    app.post("/delete-request", verifyJWT, async (req, res) => {
+      const { id, request } = req.body;
+      const archiveData = { ...request };
+      delete archiveData._id;
+      archiveData.originalId = id;
+      archiveData.deletedAt = new Date();
+
+      const result = await deletedBloodRequestsCollection.insertOne(request);
+      await bloodRequestsCollection.deleteOne({ _id: new ObjectId(id) });
+      console.log(result);
+      res.send(result);
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
