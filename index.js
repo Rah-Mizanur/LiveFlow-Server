@@ -111,11 +111,11 @@ async function run() {
       const result = await bloodRequestsCollection.find().toArray();
       res.send(result);
     });
-    app.get("/pending-blood-req",async(req,res)=>{
-      const filter = ({status : "pending"})
-      const result = await bloodRequestsCollection.find(filter).toArray()
-      res.send(result)
-    })
+    app.get("/pending-blood-req", async (req, res) => {
+      const filter = { status: "pending" };
+      const result = await bloodRequestsCollection.find(filter).toArray();
+      res.send(result);
+    });
     app.get("/deleted-blood-req", verifyJWT, async (req, res) => {
       const result = await deletedBloodRequestsCollection.find().toArray();
       res.send(result);
@@ -228,6 +228,36 @@ async function run() {
       await bloodRequestsCollection.deleteOne({ _id: new ObjectId(id) });
       console.log(result);
       res.send(result);
+    });
+
+    // apply search api
+
+    app.get("/searchdata", async (req, res) => {
+      try {
+        const { bloodGroup, district, upazila } = req.query;
+        let query = {};
+
+        if (bloodGroup && bloodGroup !== "") {
+          query.bloodGroup = bloodGroup;
+        }
+
+        // IMPORTANT: Use the exact keys from your database (recipientZila / recipientUpazila)
+        if (district && district !== "") {
+          query.zila = district;
+        }
+
+        if (upazila && upazila !== "") {
+          query.upazila = upazila;
+        }
+
+        // console.log("Final MongoDB Query:", query); // Check your terminal to see if this looks right
+
+        const result = await usersCollection.find(query).toArray();
+        res.send(result);
+      } catch (error) {
+        console.error("Search Error:", error);
+        res.status(500).send({ message: "Internal Server Error" });
+      }
     });
 
     // Send a ping to confirm a successful connection
