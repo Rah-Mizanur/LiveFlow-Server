@@ -107,10 +107,7 @@ async function run() {
         .toArray();
       res.send(result);
     });
-    app.get("/all-blood-req", verifyJWT, async (req, res) => {
-      const result = await bloodRequestsCollection.find().toArray();
-      res.send(result);
-    });
+
     app.get("/pending-blood-req", async (req, res) => {
       const filter = { status: "pending" };
       const result = await bloodRequestsCollection.find(filter).toArray();
@@ -120,10 +117,39 @@ async function run() {
       const result = await deletedBloodRequestsCollection.find().toArray();
       res.send(result);
     });
-    app.get("/all-users", verifyJWT, async (req, res) => {
-      const result = await usersCollection.find().toArray();
-      res.send(result);
+    app.get("/all-blood-req", async (req, res) => {
+      let { bloodGroup, status } = req.query;
+      let query = {};
+
+      if (bloodGroup && bloodGroup.trim() !== "") {
+        const sanitizedBloodGroup = bloodGroup.trim();
+        query.bloodGroup = sanitizedBloodGroup;
+      }
+
+      if (status && status.trim() !== "") {
+        query.status = status.trim();
+      }
+
+      try {
+        const result = await bloodRequestsCollection.find(query).toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Error fetching requests" });
+      }
     });
+
+    app.get("/all-users", verifyJWT, async (req, res) => {
+
+  const { status } = req.query; 
+  
+  let query = {};
+  if (status && status !== "") {
+    query.status = status;
+  }
+
+  const result = await usersCollection.find(query).toArray();
+  res.send(result);
+});
     app.get("/req-details/:id", async (req, res) => {
       const { id } = req.params;
       const result = await bloodRequestsCollection.findOne({
