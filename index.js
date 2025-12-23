@@ -4,7 +4,7 @@ const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const admin = require("firebase-admin");
 const port = process.env.PORT || 3000;
-
+const stripe = require("stripe")(process.env.Stripe_Key);
 const decoded = Buffer.from(process.env.Fb_Key, "base64").toString("utf-8");
 const serviceAccount = JSON.parse(decoded);
 admin.initializeApp({
@@ -56,6 +56,7 @@ async function run() {
     const usersCollection = db.collection("users");
     const bloodRequestsCollection = db.collection("bloodRequests");
     const deletedBloodRequestsCollection = db.collection("deletedRequest");
+    const donationsCollection = db.collection("donation");
     // save user information when they signup
     app.post("/user", async (req, res) => {
       const userData = req.body;
@@ -113,6 +114,11 @@ async function run() {
       const result = await bloodRequestsCollection.find(filter).toArray();
       res.send(result);
     });
+    // funding data 
+    app.get("/funding", async (req, res) => {
+      const result = await donationsCollection.find().toArray();
+      res.send(result);
+    });
     app.get("/deleted-blood-req", verifyJWT, async (req, res) => {
       const result = await deletedBloodRequestsCollection.find().toArray();
       res.send(result);
@@ -137,19 +143,17 @@ async function run() {
         res.status(500).send({ message: "Error fetching requests" });
       }
     });
-
     app.get("/all-users", verifyJWT, async (req, res) => {
+      const { status } = req.query;
 
-  const { status } = req.query; 
-  
-  let query = {};
-  if (status && status !== "") {
-    query.status = status;
-  }
+      let query = {};
+      if (status && status !== "") {
+        query.status = status;
+      }
 
-  const result = await usersCollection.find(query).toArray();
-  res.send(result);
-});
+      const result = await usersCollection.find(query).toArray();
+      res.send(result);
+    });
     app.get("/req-details/:id", async (req, res) => {
       const { id } = req.params;
       const result = await bloodRequestsCollection.findOne({
@@ -283,6 +287,87 @@ async function run() {
       } catch (error) {
         console.error("Search Error:", error);
         res.status(500).send({ message: "Internal Server Error" });
+      }
+    });
+
+    // stripe add
+    app.post("/create-checkout-session", async (req, res) => {
+      const donationInfo = req.body;
+
+      const session = await stripe.checkout.sessions.create({
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: "Donation",
+              },
+              unit_amount: donationInfo.amount * 100,
+            },
+            quantity: 1,
+          },
+        ],
+
+        mode: "payment",
+
+        customer_email: donationInfo.donorEmail,
+
+        metadata: {
+          donor: donationInfo.donor,
+        },
+
+        success_url: `${process.env.CLIENT_DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.CLIENT_DOMAIN}/funding`,
+      });
+
+      res.send({ url: session.url });
+    });
+
+    app.post("/payment-success", async (req, res) => {
+      try {
+        const { sessionId } = req.body;
+
+        if (!sessionId) {
+          return res.status(400).send({ error: "Session ID required" });
+        }
+
+        // Retrieve Stripe session
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+        // Check if already saved
+        const existingDonation = await donationsCollection.findOne({
+          transactionId: session.payment_intent,
+        });
+
+        // Ensure payment completed and not duplicated
+        if (session.status === "complete" && !existingDonation) {
+          const donationInfo = {
+            donor: session.metadata?.donor || "Anonymous",
+            donorEmail: session.customer_email,
+            amount: session.amount_total / 100,
+            transactionId: session.payment_intent,
+            paymentStatus: session.payment_status,
+            donateAt: new Date(),
+          };
+
+          const result = await donationsCollection.insertOne(donationInfo);
+
+          return res.send({
+            success: true,
+            donationId: result.insertedId,
+            transactionId: session.payment_intent,
+          });
+        }
+
+        // If already exists
+        res.send({
+          success: true,
+          transactionId: session.payment_intent,
+          message: "Donation already recorded",
+        });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Payment verification failed" });
       }
     });
 
