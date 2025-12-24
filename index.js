@@ -57,6 +57,7 @@ async function run() {
     const bloodRequestsCollection = db.collection("bloodRequests");
     const deletedBloodRequestsCollection = db.collection("deletedRequest");
     const donationsCollection = db.collection("donation");
+      const { ObjectId } = require("mongodb");
     // save user information when they signup
     app.post("/user", async (req, res) => {
       const userData = req.body;
@@ -101,30 +102,44 @@ async function run() {
         .toArray();
       res.send(result);
     });
+
     app.get("/my-blood-req/:email", verifyJWT, async (req, res) => {
       const email = req.params.email;
-      const result = await bloodRequestsCollection
-        .find({ registererEmail: email })
-        .toArray();
-      res.send(result);
-    });
+      const { status, page, limit } = req.query;
 
-    app.get("/pending-blood-req", async (req, res) => {
-      const filter = { status: "pending" };
-      const result = await bloodRequestsCollection.find(filter).toArray();
-      res.send(result);
-    });
-    // funding data 
-    app.get("/funding", async (req, res) => {
-      const result = await donationsCollection.find().toArray();
-      res.send(result);
-    });
-    app.get("/deleted-blood-req", verifyJWT, async (req, res) => {
-      const result = await deletedBloodRequestsCollection.find().toArray();
-      res.send(result);
+      // Build query
+      let query = { registererEmail: email };
+      if (status && status !== "") {
+        query.status = status;
+      }
+
+      const pageNumber = parseInt(page);
+      const pageSize = parseInt(limit);
+      const skip = (pageNumber - 1) * pageSize;
+
+      try {
+        const total = await bloodRequestsCollection.countDocuments(query);
+
+        const result = await bloodRequestsCollection
+          .find(query)
+          .skip(skip)
+          .limit(pageSize)
+          .toArray();
+
+        res.send({
+          total,
+          page: pageNumber,
+          limit: pageSize,
+          totalPages: Math.ceil(total / pageSize),
+          data: result,
+        });
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ error: "Failed to fetch blood requests" });
+      }
     });
     app.get("/all-blood-req", async (req, res) => {
-      let { bloodGroup, status } = req.query;
+      let { bloodGroup, status, page, limit } = req.query;
       let query = {};
 
       if (bloodGroup && bloodGroup.trim() !== "") {
@@ -136,13 +151,49 @@ async function run() {
         query.status = status.trim();
       }
 
+      const pageNumber = parseInt(page);
+      const pageSize = parseInt(limit);
+      const skip = (pageNumber - 1) * pageSize;
+
       try {
-        const result = await bloodRequestsCollection.find(query).toArray();
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ message: "Error fetching requests" });
+        const total = await bloodRequestsCollection.countDocuments(query);
+        const result = await bloodRequestsCollection
+          .find(query)
+          .skip(skip)
+          .limit(pageSize)
+          .toArray();
+
+        res.send({
+          total,
+          page: pageNumber,
+          limit: pageSize,
+          totalPages: Math.ceil(total / pageSize),
+          data: result,
+        });
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ error: "Failed to fetch blood requests" });
       }
     });
+     app.get("/active-blood-req", verifyJWT, async (req, res) => {
+      const result = await bloodRequestsCollection.find().toArray();
+      res.send(result);
+    });
+    app.get("/pending-blood-req", async (req, res) => {
+      const filter = { status: "pending" };
+      const result = await bloodRequestsCollection.find(filter).toArray();
+      res.send(result);
+    });
+    // funding data
+    app.get("/funding", async (req, res) => {
+      const result = await donationsCollection.find().toArray();
+      res.send(result);
+    });
+    app.get("/deleted-blood-req", verifyJWT, async (req, res) => {
+      const result = await deletedBloodRequestsCollection.find().toArray();
+      res.send(result);
+    });
+
     app.get("/all-users", verifyJWT, async (req, res) => {
       const { status } = req.query;
 
@@ -208,14 +259,33 @@ async function run() {
 
     app.patch("/update-blood-status-done", verifyJWT, async (req, res) => {
       const { id, status } = req.body;
-      const filter = { _id: new ObjectId(id) };
-      const updateDoc = {
-        $set: {
-          status: status,
-        },
-      };
-      const result = await bloodRequestsCollection.updateOne(filter, updateDoc);
-      res.send(result);
+
+      const validStatuses = ["done", "cancel", "inprogress", "pending"];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).send({ message: "Invalid status value" });
+      }
+
+      try {
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: { status: status },
+        };
+
+        const result = await bloodRequestsCollection.updateOne(
+          filter,
+          updateDoc
+        );
+
+        if (result.modifiedCount > 0) {
+          res.send({ success: true, message: `Status updated to ${status}` });
+        } else {
+          res
+            .status(404)
+            .send({ message: "No changes made or request not found" });
+        }
+      } catch (error) {
+        res.status(500).send({ message: "Server error during status update" });
+      }
     });
     // edit post
     app.patch("/edit-request", verifyJWT, async (req, res) => {
@@ -246,19 +316,44 @@ async function run() {
       res.send(result);
     });
 
+  
     // delete data and includes other database
-    app.post("/delete-request", verifyJWT, async (req, res) => {
-      const { id, request } = req.body;
-      const archiveData = { ...request };
-      delete archiveData._id;
-      archiveData.originalId = id;
-      archiveData.deletedAt = new Date();
 
-      const result = await deletedBloodRequestsCollection.insertOne(request);
-      await bloodRequestsCollection.deleteOne({ _id: new ObjectId(id) });
-      console.log(result);
-      res.send(result);
-    });
+
+
+app.post("/delete-request", verifyJWT, async (req, res) => {
+  try {
+    const { id, request } = req.body;
+
+    // Validate ID
+    if (!id || !ObjectId.isValid(id)) {
+      return res.status(400).send({ error: "Invalid request ID" });
+    }
+
+    // Prepare archive data
+    const archiveData = {
+      ...request,           // include all original fields
+      originalId: id,       // keep track of original _id
+      deletedAt: new Date(), // deletion timestamp
+    };
+
+    // Remove _id to avoid conflicts
+    delete archiveData._id;
+
+    // Insert full request data into deleted collection
+    const result = await deletedBloodRequestsCollection.insertOne(archiveData);
+
+    // Delete the original request from main collection
+    await bloodRequestsCollection.deleteOne({ _id: new ObjectId(id) });
+    // console.log(archiveData)
+    console.log("Archived and deleted:", result);
+    res.send({ success: true, result });
+  } catch (err) {
+    console.error("Delete request error:", err);
+    res.status(500).send({ error: "Failed to delete request" });
+  }
+});
+;
 
     // apply search api
 
